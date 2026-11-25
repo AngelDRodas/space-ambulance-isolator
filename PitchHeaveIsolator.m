@@ -2,7 +2,9 @@
 % Pitch-heave model of the isolated stretcher at splashdown, merged from
 % SpaceAmbulancePitchHeaveModel.m (equal isolators), PitchHeave4Params.m
 % (separate head/foot isolators, 4-D grid) and SpaceAmbulancePitchHeaveOptimizer.m
-% (continuous polish). Revision 2026-11-19:
+% (continuous polish). Revision 2026-11-20: each pulse shape runs at its own
+% peak for the chosen pulse basis (isolator_envelope_peak.m; 'impulse' = 5 ms
+% bounding pulse, floor mount). Revision 2026-11-19:
 %   - inputs come from isolator_inputs.m (same file as the SDOF scripts)
 %   - the pulse comes from isolator_make_input.m (same record as the SDOF scripts)
 %   - Brinkley DR (X axis, supine) added at the PATIENT CG as two more states
@@ -66,18 +68,22 @@ LIM.imp    = (1 - IN.impulse_margin)*IN.impulse_max;
 INr = IN;  INr.t_post = IN.ph_t_post;
 for ii = 1:numel(IN.ph_pulses)
     INr.pulse = IN.ph_pulses{ii};
-    [t, acc, a0, t_imp, dt] = isolator_make_input(INr);
+    INr.a_in_pk = isolator_envelope_peak(IN, INr.pulse);   % each shape at its own peak for the basis
+    [t, acc, a0, t_imp, dt, T] = isolator_make_input(INr);
     dv = cumtrapz(t, acc - a0);
     PUL(ii).name = IN.ph_pulses{ii};                       %#ok<SAGROW>
     PUL(ii).t = t;  PUL(ii).dt = dt;  PUL(ii).a = acc;  PUL(ii).a0 = a0;
     PUL(ii).u = dv - dv(end);                              % floor velocity: -Vi before, 0 after
     PUL(ii).post = t >= t_imp;
+    PUL(ii).apk = INr.a_in_pk;  PUL(ii).T = T;
 end
 BR.gB = g*IN.brinkley_1g + (g - PUL(1).a0)*(~IN.brinkley_1g);
 
 fprintf('=== Pitch-heave inputs ===\n');
-fprintf('Isolators at z = %.3f (head) and %.3f m (foot); Vi = %.2f m/s, peak %.1f g\n', ...
-        G.zF, G.zR, IN.Vi, IN.a_in_pk);
+fprintf('Isolators at z = %.3f (head) and %.3f m (foot); Vi = %.2f m/s\n', G.zF, G.zR, IN.Vi);
+for ii = 1:numel(PUL)
+    fprintf('  pulse %-8s peak %.2f g, T = %.1f ms (%s basis)\n', PUL(ii).name, PUL(ii).apk, 1e3*PUL(ii).T, IN.pulse_basis);
+end
 for ip = 1:nP
     [b, a] = levers(pat(ip), G);
     fprintf('  %-32s J = %6.2f kg m^2, z_cg = %.4f, z_pat = %.4f m, b = %.4f, a = %.4f m\n', ...

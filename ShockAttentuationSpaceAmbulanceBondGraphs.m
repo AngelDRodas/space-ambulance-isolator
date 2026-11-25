@@ -227,7 +227,8 @@ if any(PASS_ALL(:))
 end
 
 % MAT file for compare_models.m: full sweep plus time histories of the
-% check design (same k, c in both models).
+% check design (same k, c in both models; empty = this model's selection).
+if isempty(IN.k_check), IN.k_check = k_best;  IN.c_check = b_best;  end
 [~, ~, ~, ~, Hc] = sim_bg_multi(m_list, IN.k_check, IN.c_check, a, a0, t, post, g, ...
                                stroke_def, accel_def, vb0, BR);
 R = struct('model', 'bond graph (RK4)', 'IN', IN, 'm_list', m_list, ...

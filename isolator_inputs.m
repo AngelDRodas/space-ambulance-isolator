@@ -10,6 +10,11 @@ function P = isolator_inputs()
 %
 % Revision 2026-11-19: isolated mass, patient mass and touchdown velocity
 % updated (see notes beside each input).
+% Revision 2026-11-20: design pulse set by the healthy-crew Brinkley limit
+% (isolator_envelope_peak.m) instead of the scaled Apollo peak.
+% Revision 2026-11-20 PM: floor mount; input = 5 ms impulsive bounding pulse
+% (pulse_basis = 'impulse'); time-step rule n_min 50, ppc 400; the check
+% design for compare_models.m is now the selected design.
 
 P.g = 9.81;                      % [m/s^2]
 
@@ -39,17 +44,24 @@ P.m_list    = P.m_package + P.m_patient;   % [kg] -> 102.89 and 170.47
 P.Vi      = 8.9;          % touchdown velocity [m/s]: Orion splashdown <= 20 mph
                           % (NASA 2022, Orion reference guide). Was 7.62 m/s (Apollo 25 ft/s).
 P.pulse   = 'halfsine';   % 'halfsine' | 'rect' | 'data'
-% Peak capsule accelerometer reading in the pulse [g] (synthetic only).
-% Reference: Apollo splashdown, ~15 g peak at 7.62 m/s (25 ft/s).
-% Scaled to the Orion touchdown velocity assuming the hydrodynamic water-entry
-% load goes as rho*V^2 (same heat-shield shape class, similar mass per area):
-%   a_pk = 1 + (a_ref - 1)*(Vi/V_ref)^2   -> 20.1 g at 8.9 m/s, half-sine 75 ms.
-% Linear scaling (same pulse duration) would give 17.4 g; V^2 is the more
-% conservative and more physical choice. Replace with a measured pulse
-% (pulse = 'data') when one is available.
-P.a_ref   = 15;           % [g]   Apollo reference peak
-P.V_ref   = 7.62;         % [m/s] Apollo reference touchdown velocity
-P.a_in_pk = 1 + (P.a_ref - 1)*(P.Vi/P.V_ref)^2;   % [g]
+% Input pulse (Angel 2026-11-20 PM): the isolators are mounted to the capsule
+% FLOOR and cannot rely on any seat attenuation, so the floor pulse is unknown.
+% What is known is the velocity it removes (Vi). For a fixed velocity change the
+% isolated patient's response grows as the pulse gets shorter and levels off at
+% the impulsive limit. A design that passes a SHORT pulse that removes Vi therefore
+% passes any single pulse that removes Vi: this is a bounding case that shows a
+% solution exists, not a design pulse (retune to the vehicle's floor pulse later).
+%   pulse_basis = 'impulse': half-sine of duration T_impulse = 5 ms -> 286 g.
+% Other bases (isolator_envelope_peak.m):
+%   'envelope': seat mount. The pulse that drives a crew member on a RIGID mount
+%               to the healthy Brinkley limit DR_X = +35 (NASA-STD-3001 Vol 2
+%               Rev D [V2 6070]): half-sine 29.7 g, 49.7 ms at 8.9 m/s.
+%   'fixed'   : a_fixed [g].
+% Replace with a measured floor record (pulse = 'data') when one is available.
+P.pulse_basis = 'impulse';   % 'impulse' | 'envelope' | 'fixed'
+P.T_impulse   = 0.005;       % [s] 1-2 % of the isolator period, 5 % of the body period
+P.a_fixed     = 20.1;        % [g] used only when pulse_basis = 'fixed'. Superseded basis:
+                             % Apollo 15 g crew limit (Chandler 1992) scaled by (Vi/7.62)^2.
 
 % Measured accelerometer data (used when pulse = 'data')
 P.data_file  = 'accel.csv';  % two columns: time [s], vertical acceleration
@@ -94,15 +106,16 @@ P.c_vec = linspace(1e2, 4e3, 200);   % [N*s/m]
 P.axis_scale  = 'linear';
 P.zeta_guides = [0.1 0.3 0.7 1.0];
 
-% Check design: both scripts save its full time history for compare_models.m
-% (Design B, sized in October for 100/150 kg at 7.62 m/s).
-P.k_check = 13000;   P.c_check = 1700;
+% Check design: both scripts save its full time history for compare_models.m.
+% Empty = each script uses its own selected design (both select the same one;
+% compare_models.m stops if they differ). Set numbers to check another design.
+P.k_check = [];   P.c_check = [];
 
 %% ---------------- Time grid ----------------
 P.t_pre  = 0.2;     % steady descent before impact [s]
 P.t_post = 2.5;     % after the pulse [s]
-P.n_min  = 200;     % minimum samples across the pulse
-P.ppc    = 50;      % samples per period of the fastest system (isolator OR Brinkley)
+P.n_min  = 50;      % minimum samples across the pulse (5 ms pulse -> dt = 0.1 ms)
+P.ppc    = 400;     % samples per period of the fastest system (Brinkley, 10 Hz -> dt <= 0.25 ms)
 % Convergence check: double n_min and ppc, rerun both scripts and compare_models.
 % If the model-to-model error drops ~4x, the difference is numerical (2nd order).
 
@@ -122,4 +135,7 @@ P.ph_sep_span = [0.5 0.5];       % separate search: +/- fraction around the equa
 P.ph_sep_n    = [9 9];           % points per axis -> 9^4 = 6561 designs
 P.ph_polish   = true;            % fminsearch polish of the separate design
 P.ph_ode45_check = true;         % independent Newton-Euler/ode45 check of the pitch coupling
+
+%% ---------------- Design pulse peak (needs everything above) ----------------
+P.a_in_pk = isolator_envelope_peak(P);   % [g] 286 for the 5 ms half-sine at 8.9 m/s
 end

@@ -212,7 +212,8 @@ if any(PASS_ALL(:))
 end
 
 % MAT file for compare_models.m: full sweep plus time histories of the
-% check design (same k, c in both models) and of this model's selection.
+% check design (same k, c in both models; empty = this model's selection).
+if isempty(IN.k_check), IN.k_check = k_best;  IN.c_check = c_best;  end
 z_c = zeros(numel(t), nm);  am_c = z_c;  DR_c = z_c;
 for im = 1:nm
     [~, ~, ~, ~, z_c(:,im), am_c(:,im), DR_c(:,im)] = run_case(m_list(im), ...
@@ -277,7 +278,7 @@ for im = 1:nm
         sprintf('Accel = %g g', accel_max), ...
         sprintf('Impulse = %g g\\cdot{}s', impulse_max), ...
         sprintf('Brinkley \\beta = 1 (%s, %s)', upper(brinkley_axis), crew_condition), ...
-        'Best for this mass'}, 'Location', 'southeast');
+        'Best for this mass'}, 'Location', 'northeast');
 end
 
 %% ======================= PLOT: ALL MASSES =======================
@@ -309,7 +310,7 @@ xlim([min(k_vec) max(k_vec)]); ylim([min(c_vec) max(c_vec)]);
 xlabel('Spring constant k [N/m]'); ylabel('Damper constant c [N\cdot{}s/m]');
 title({sprintf('All masses: %d meet limits, %d meet margins', ...
       nnz(PASS_ALL), nnz(PASS_M_ALL)), ['Selected: ' sel_txt]});
-legend(h, lab, 'Location', 'southeast');
+legend(h, lab, 'Location', 'northeast');
 
 %% ======================= PLOT: TIME HISTORY OF SELECTED DESIGN =======================
 figure('Name', 'Selected design', 'Color', 'w');
